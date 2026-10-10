@@ -95,3 +95,198 @@
   .btn-redeem { background: #ff9800; color: #fff; padding: 10px 18px; font-size: 14px; margin: 0; }
 </style>
 </head>
+
+ 
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div class="card" id="screen-login">
+  <h1>Eco Earn</h1>
+  <p class="sub">Eco Earn, sort it right, earn coins, grab rewards.</p>
+  <div style="margin-bottom:12px;">
+    <button class="btn-link" onclick="authTab('login')">Log in</button>
+    <button class="btn-link" onclick="authTab('signup')">Sign up</button>
+  </div>
+  <div id="authError" class="hidden"><p class="error-msg" id="authErrorMsg"></p></div>
+  <input type="text" id="username" placeholder="Username" maxlength="20" autocomplete="username">
+  <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+  <input type="password" id="password2" placeholder="Repeat password" class="hidden" autocomplete="new-password">
+  <button class="btn-primary" id="authGo" onclick="doAuth()">Log in</button>
+  <p class="note">Your coins are saved to your account, on any device.</p>
+</div>
+
+<!-- ============ HOME ============ -->
+<div class="card hidden" id="screen-home">
+  <div class="topbar">
+    <h1>Eco Earn</h1>
+    <div class="coins">&#129689; <span id="coinTotal">0</span></div>
+  </div>
+  <p class="sub">Hi <b id="helloName"></b>! Snap your waste below.</p>
+
+  <div class="square-box" id="box" onclick="boxTap()">
+    <video id="video" autoplay playsinline></video>
+    <img id="preview" class="hidden" alt="Your photo">
+    <div class="tap-hint" id="tapHint">&#128070; Tap the box to capture</div>
+  </div>
+
+  <div id="btnsCamera">
+    <button class="btn-click" onclick="clickPhoto()">&#128247; Capture!</button>
+    <p class="note">Please allow camera permission in your browser</p>
+  </div>
+
+  <div id="btnsFallback" class="hidden">
+    <button class="btn-file" onclick="document.getElementById('fileInput').click()">&#128444; Choose from Files</button>
+    <input type="file" id="fileInput" accept="image/*" capture="environment" class="hidden">
+  </div>
+
+  <div id="btnsPhoto" class="hidden">
+    <button class="btn-retake" onclick="retake()">&#128260; Retake</button>
+    <button class="btn-submit" onclick="submitPhoto()">&#9989; Submit</button>
+  </div>
+
+  <div id="analyzing" class="hidden">
+    <div class="spinner"></div>
+    <p class="analyzing-text">&#128269; Analyzing your photo with AI...</p>
+  </div>
+
+  <div id="errorBox" class="hidden">
+    <p class="error-msg" id="errorMsg"></p>
+    <button class="btn-retake" onclick="retake()">&#128260; Try Again</button>
+  </div>
+
+  <div style="margin-top:10px;">
+    <button class="btn-link" onclick="openRewards()">&#127873; Rewards</button>
+    <button class="btn-link" onclick="doLogout()">Log out</button>
+  </div>
+
+  <p class="section-title">&#127942; Leaderboard</p>
+  <div id="leaderboard"><p class="lb-empty">Loading...</p></div>
+</div>
+
+<!-- ============ PICK THE BIN ============ -->
+<div class="card hidden" id="screen-pick">
+  <h1>Which bin?</h1>
+  <p class="sub">Pick the right dustbin for your waste. Correct pick = <b>+10 coins</b>.</p>
+  <div class="square-box"><img id="pickPreview" alt="Your photo"></div>
+  <div>
+    <button class="btn-bin-wet" onclick="pickBin('wet')">&#128994; Wet Bin</button>
+    <button class="btn-bin-dry" onclick="pickBin('dry')">&#128994; Dry Bin</button>
+  </div>
+  <div id="pickResult" class="hidden" style="margin-top:12px;">
+    <div class="result-card">
+      <p class="waste-type" id="pickType"></p>
+      <p class="result-msg" id="pickMsg"></p>
+      <p class="coins-earned" id="pickCoins"></p>
+    </div>
+    <button class="btn-submit" onclick="goHome()">&#128247; Snap Another</button>
+  </div>
+</div>
+
+<!-- ============ REWARDS ============ -->
+<div class="card hidden" id="screen-rewards">
+  <div class="topbar">
+    <h1>&#127873; Rewards</h1>
+    <div class="coins">&#129689; <span id="coinTotalR">0</span></div>
+  </div>
+  <p class="sub">Spend your coins on rewards.</p>
+  <div id="rewardMsg"></div>
+  <div id="rewardList"><p class="lb-empty">Loading...</p></div>
+  <button class="btn-link" onclick="goHome()">&#8592; Back</button>
+</div>
+
+<canvas id="canvas" class="hidden"></canvas>
+
+<script>
+  // Same-origin API: the backend serves this page, so "" works on
+  // localhost, your computer's IP, and the deployed server.
+  const API = "";
+
+  let stream = null;
+  let captured = false;
+  let lastImageData = null;
+  let lastAnalysis = null;
+
+  const $ = id => document.getElementById(id);
+  const show = id => $(id).classList.remove('hidden');
+  const hide = id => $(id).classList.add('hidden');
+
+  let myUserId = null; // set after login; the session cookie is the real auth
+  let authMode = 'login';
+
+  function showScreen(name) {
+    ['screen-login', 'screen-home', 'screen-pick', 'screen-rewards']
+      .forEach(id => hide(id));
+    show('screen-' + name);
+  }
+
+  /* ---------- auth ---------- */
+  function authTab(mode) {
+    authMode = mode;
+    $('password2').classList.toggle('hidden', mode === 'login');
+    $('authGo').textContent = mode === 'login' ? 'Log in' : 'Create account';
+    hide('authError');
+  }
+  function authFail(msg) {
+    $('authErrorMsg').textContent = msg;
+    show('authError');
+  }
+  async function doAuth() {
+    const username = $('username').value;
+    const password = $('password').value;
+    if (authMode === 'signup' && password !== $('password2').value) {
+      authFail('Passwords do not match.');
+      return;
+    }
+    hide('authError');
+    try {
+      const res = await fetch(API + '/api/' + authMode, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed. Please try again.');
+      myUserId = data.user_id;
+      enterHome();
+    } catch (e) { authFail(e.message); }
+  }
+  async function doLogout() {
+    stopStream();
+    try { await fetch(API + '/api/logout', { method: 'POST', credentials: 'same-origin' }); } catch (e) {}
+    myUserId = null;
+    $('password').value = ''; $('password2').value = '';
+    showScreen('login');
+  }
+  async function enterHome() {
+    $('helloName').textContent = myUserId;
+    showScreen('home');
+    await refreshBalance();
+    await loadLeaderboard();
+    retake();
+  }
+
+  /* ---------- coins & leaderboard ---------- */
+  async function refreshBalance() {
+    try {
+      const r = await fetch(API + '/api/coins/' + encodeURIComponent(myUserId),
+        { credentials: 'same-origin' });
+      const d = await r.json();
+      const c = d.coins || 0;
+      $('coinTotal').textContent = c;
+      $('coinTotalR').textContent = c;
+    } catch (e) { /* backend down: balance stays 0 */ }
+  }
+  async function loadLeaderboard() {
+    try {
+      const r = await fetch(API + '/api/leaderboard', { credentials: 'same-origin' });
+      const list = await r.json();
+      if (!list.length) { $('leaderboard').innerHTML = '<p class="lb-empty">No scores yet. Be the first!</p>'; return; }
+      $('leaderboard').innerHTML = list.map((row, i) =>
+        `<div class="lb-row ${row.user_id === myUserId ? 'me' : ''}">
+           <span>${i + 1}. ${row.user_id}</span><span>&#129689; ${row.coins}</span>
+         </div>`).join('');
+    } catch (e) {
+      $('leaderboard').innerHTML = '<p class="lb-empty">Could not load.</p>';
+    }
+  }
