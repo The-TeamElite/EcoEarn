@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eco Earn</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #11998e, #38ef7d);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: #fff; border-radius: 20px; padding: 25px;
+    max-width: 420px; width: 100%; text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+  .coins { background: #fff8e1; border: 1px solid #ffd54f; border-radius: 50px;
+           padding: 6px 14px; font-weight: bold; font-size: 15px; }
+  h1 { font-size: 22px; margin-bottom: 5px; }
+  .sub { color: #666; font-size: 14px; margin-bottom: 18px; }
+  .hidden { display: none !important; }
+
+  input[type=text], input[type=password] {
+    width: 100%; padding: 13px; font-size: 16px; border-radius: 12px;
+    border: 2px solid #ddd; margin-bottom: 12px; outline: none;
+  }
+  input[type=text]:focus, input[type=password]:focus { border-color: #11998e; }
+
+  .square-box {
+    width: 100%; aspect-ratio: 1 / 1;
+    border-radius: 15px; background: #222;
+    margin-bottom: 15px; overflow: hidden; position: relative;
+  }
+  .square-box video, .square-box img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .square-box .tap-hint {
+    position: absolute; bottom: 10px; left: 0; right: 0;
+    color: #fff; font-size: 13px; opacity: .9;
+    text-shadow: 0 1px 4px rgba(0,0,0,.6); pointer-events: none;
+  }
+
+  button {
+    border: none; border-radius: 50px; padding: 13px 26px;
+    font-size: 16px; font-weight: bold; cursor: pointer;
+    margin: 6px; transition: transform .15s;
+  }
+  button:active { transform: scale(.95); }
+  button:disabled { opacity: .5; cursor: default; }
+  .btn-primary { background: #11998e; color: #fff; font-size: 18px; width: 100%; }
+  .btn-click   { background: #ff5e62; color: #fff; font-size: 18px; }
+  .btn-submit  { background: #2ecc71; color: #fff; font-size: 18px; }
+  .btn-retake  { background: #eee; color: #333; }
+  .btn-file    { background: #f39c12; color: #fff; }
+  .btn-link    { background: none; color: #11998e; text-decoration: underline; font-size: 14px; padding: 6px; }
+  .btn-bin-wet { background: #2e7d32; color: #fff; font-size: 18px; width: 44%; }
+  .btn-bin-dry { background: #1565c0; color: #fff; font-size: 18px; width: 44%; }
+
+  .spinner {
+    width: 42px; height: 42px; margin: 10px auto;
+    border: 5px solid #e0e0e0; border-top: 5px solid #11998e;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .analyzing-text { color: #555; font-size: 15px; margin-bottom: 10px; }
+
+  .result-card { background: #f7fdf9; border: 1px solid #c8e6c9; border-radius: 15px; padding: 18px; margin-bottom: 12px; }
+  .waste-type { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+  .result-msg { font-size: 15px; color: #444; margin-bottom: 8px; }
+  .coins-earned { font-size: 22px; font-weight: bold; color: #e6a100; margin-bottom: 6px; }
+  .error-msg { color: #d32f2f; font-size: 15px; margin-bottom: 10px; }
+  .ok-msg { color: #2e7d32; font-size: 15px; margin-bottom: 10px; font-weight: bold; }
+  .note { font-size: 12px; color: #999; margin-top: 12px; }
+
+  .section-title { font-size: 17px; font-weight: bold; margin: 18px 0 8px; text-align: left; }
+  .lb-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #f5f5f5; border-radius: 10px; padding: 10px 14px; margin-bottom: 6px; font-size: 15px;
+  }
+  .lb-row.me { background: #e8f5e9; border: 1px solid #a5d6a7; font-weight: bold; }
+  .lb-empty { color: #999; font-size: 14px; }
+
+  .reward-card {
+    background: #fffdf5; border: 1px solid #ffe082; border-radius: 14px;
+    padding: 14px; margin-bottom: 10px; text-align: left;
+  }
+  .reward-title { font-weight: bold; font-size: 16px; margin-bottom: 4px; }
+  .reward-desc { font-size: 13px; color: #666; margin-bottom: 8px; }
+  .reward-row { display: flex; justify-content: space-between; align-items: center; }
+  .reward-cost { font-weight: bold; color: #e6a100; }
+  .btn-redeem { background: #ff9800; color: #fff; padding: 10px 18px; font-size: 14px; margin: 0; }
+</style>
+</head>
