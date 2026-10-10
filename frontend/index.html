@@ -290,3 +290,169 @@
       $('leaderboard').innerHTML = '<p class="lb-empty">Could not load.</p>';
     }
   }
+
+ 
+  /* ---------- camera ---------- */
+  async function startCamera() {
+    captured = false; lastImageData = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      $('video').srcObject = stream;
+      show('video'); hide('preview'); show('tapHint');
+      hide('btnsFallback'); show('btnsCamera');
+      hide('btnsPhoto'); hide('analyzing'); hide('errorBox');
+    } catch (e) {
+      hide('btnsCamera'); show('btnsFallback');
+      $('tapHint').textContent = 'Camera unavailable - use the button below';
+    }
+  }
+  function boxTap() { if (!captured && stream) clickPhoto(); }
+  function clickPhoto() {
+    const video = $('video');
+    if (!video.videoWidth) return;
+    const canvas = $('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    setPreview(canvas.toDataURL('image/jpeg', 0.9));
+    afterCapture();
+  }
+  $('fileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => { setPreview(ev.target.result); afterCapture(); };
+    reader.readAsDataURL(file);
+  });
+  function setPreview(src) {
+    lastImageData = src;
+    $('preview').src = src;
+    $('pickPreview').src = src;
+  }
+  function afterCapture() {
+    stopStream();
+    captured = true;
+    hide('video'); show('preview'); hide('tapHint');
+    hide('btnsCamera'); hide('btnsFallback'); show('btnsPhoto');
+  }
+  function stopStream() {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  }
+  function retake() {
+    stopStream();
+    $('fileInput').value = '';
+    startCamera();
+  }
+
+  /* ---------- analyze -> pick the bin -> coins ---------- */
+  async function submitPhoto() {
+    hide('btnsPhoto'); hide('errorBox'); show('analyzing');
+    try {
+      const res = await fetch(API + '/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: lastImageData })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Analysis failed.');
+      if (data.waste_type === 'unknown') {
+        hide('analyzing');
+        $('errorMsg').textContent = 'No waste detected. Please take a clearer photo.';
+        show('errorBox');
+        return;
+      }
+      lastAnalysis = data;
+      hide('analyzing');
+      hide('pickResult'); // fresh pick screen
+      showScreen('pick');
+    } catch (e) {
+      hide('analyzing');
+      $('errorMsg').textContent = 'Error: ' + e.message;
+      show('errorBox');
+    }
+  }
+
+  async function pickBin(choice) {
+    const actual = lastAnalysis.waste_type; // "dry" or "wet"
+    const correct = (choice === actual);
+    const emoji = actual === 'dry' ? '&#128230;' : '&#128167;';
+    $('pickType').innerHTML = emoji + ' ' + actual.charAt(0).toUpperCase() + actual.slice(1) + ' Waste';
+    if (correct) {
+      // award the 10 coins to the logged-in user (session decides who)
+      try {
+        await fetch(API + '/api/coins', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ coins: 10 })
+        });
+        await refreshBalance();
+      } catch (e) { /* coins call failed; still show result */ }
+      $('pickMsg').textContent = 'Correct bin! Great job sorting your waste.';
+      $('pickCoins').innerHTML = '&#129689; +10 Coins!';
+    } else {
+      $('pickMsg').textContent = 'Not quite - this goes in the ' + actual + ' bin. No coins this time.';
+      $('pickCoins').textContent = '';
+    }
+    show('pickResult');
+  }
+
+  function goHome() { enterHome(); }
+
+  /* ---------- rewards ---------- */
+  async function openRewards() {
+    showScreen('rewards');
+    $('rewardMsg').innerHTML = '';
+    await refreshBalance();
+    try {
+      const r = await fetch(API + '/api/rewards');
+      const rewards = await r.json();
+      $('rewardList').innerHTML = rewards.map(rw =>
+        `<div class="reward-card">
+           <div class="reward-title">${rw.title}</div>
+           <div class="reward-desc">${rw.description}</div>
+           <div class="reward-row">
+             <span class="reward-cost">&#129689; ${rw.cost}</span>
+             <button class="btn-redeem" onclick="redeem('${rw.id}')">Redeem</button>
+           </div>
+         </div>`).join('');
+    } catch (e) {
+      $('rewardList').innerHTML = '<p class="error-msg">Could not load rewards.</p>';
+    }
+  }
+  async function redeem(rewardId) {
+    try {
+      const res = await fetch(API + '/api/redeem', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reward_id: rewardId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Redeem failed.');
+      $('rewardMsg').innerHTML = '<p class="ok-msg">&#127881; ' + data.reward + ' redeemed!</p>';
+      await refreshBalance();
+    } catch (e) {
+      $('rewardMsg').innerHTML = '<p class="error-msg">' + e.message + '</p>';
+    }
+  }
+
+  /* ---------- boot ---------- */
+  window.addEventListener('load', async () => {
+    authTab('login');
+    try {
+      // already logged in? (session cookie still valid)
+      const res = await fetch(API + '/api/me', { credentials: 'same-origin' });
+      if (res.ok) {
+        myUserId = (await res.json()).user_id;
+        enterHome();
+        return;
+      }
+    } catch (e) { /* backend down or not logged in */ }
+    showScreen('login');
+  });
+</script>
+
+</body>
+</html>
+
